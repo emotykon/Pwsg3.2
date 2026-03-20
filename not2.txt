@@ -1,0 +1,75 @@
+Dodanie standardowego, szarego przycisku (kontrolki BUTTON) wewn¹trz okna wymaga stworzenia tzw. okna podrzêdnego (child window) przy u¿yciu predefiniowanej klasy systemowej "BUTTON".
+
+Oto jak zmodyfikowaæ projekt, aby po klikniêciu w fizyczny przycisk na œrodku ekranu wyskakiwa³o okienko koloru:
+
+1. Zmiany w app_2048.h
+Musimy dodaæ uchwyt (HWND) dla przycisku oraz jego unikalne ID.
+
+C++
+#define ID_MY_BUTTON 2001 // Unikalne ID przycisku
+
+class app_2048 {
+private:
+    HWND m_button; // Uchwyt do przycisku
+    // ... reszta pól ...
+};
+2. Tworzenie przycisku w app_2048.cpp
+Przycisk tworzymy zazwyczaj w konstruktorze lub podczas obs³ugi komunikatu WM_CREATE. U¿ywamy do tego CreateWindowExW z klas¹ L"BUTTON".
+
+C++
+app_2048::app_2048(HINSTANCE instance) : m_instance{ instance } {
+    register_class();
+    m_main = create_window();
+
+    // Tworzymy przycisk jako dziecko okna g³ównego
+    m_button = CreateWindowExW(
+        0,
+        L"BUTTON",             // Systemowa klasa przycisku
+        L"Wybierz Kolor",      // Napis na przycisku
+        WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
+        20, 20,                // Pozycja X, Y
+        150, 40,               // Szerokoœæ, Wysokoœæ
+        m_main,                // Rodzic (nasze g³ówne okno)
+        (HMENU)ID_MY_BUTTON,   // ID przycisku (rzutowane na HMENU)
+        m_instance,
+        nullptr
+    );
+}
+3. Obs³uga klikniêcia w window_proc
+Kiedy u¿ytkownik kliknie przycisk, system wyœle do g³ównego okna komunikat WM_COMMAND. Obs³uga jest identyczna jak w przypadku menu, zmienia siê tylko sprawdzane ID.
+
+C++
+LRESULT app_2048::window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
+    switch (message) {
+    case WM_COMMAND: {
+        // Sprawdzamy, czy klikniêto nasz przycisk
+        if (LOWORD(wparam) == ID_MY_BUTTON) {
+            CHOOSECOLORW cc{ sizeof(cc) };
+            static COLORREF cust_colors[16];
+            cc.hwndOwner = window;
+            cc.lpCustColors = cust_colors;
+            cc.Flags = CC_FULLOPEN | CC_RGBINIT;
+            cc.rgbResult = m_color1;
+
+            if (ChooseColorW(&cc)) {
+                m_color1 = cc.rgbResult;
+                InvalidateRect(window, nullptr, TRUE);
+            }
+        }
+        return 0;
+    }
+    // ... reszta case-ów ...
+    }
+    return DefWindowProcW(window, message, wparam, lparam);
+}
+Jak to dzia³a?
+Klasa "BUTTON": Windows ma wbudowane "przepisy" na standardowe kontrolki (przyciski, pola tekstowe, listy). Nie musisz rejestrowaæ klasy dla przycisku – system ju¿ j¹ zna.
+
+WS_CHILD: Ten styl sprawia, ¿e przycisk jest "przyklejony" do Twojego okna. Porusza siê razem z nim i znika, gdy zamkniesz program.
+
+Parametr hMenu: W funkcji CreateWindowEx, gdy tworzysz okno podrzêdne (WS_CHILD), parametr, który normalnie s³u¿y do przekazywania menu, s³u¿y do przekazania identyfikatora (ID) kontrolki. To dziêki temu w WM_COMMAND wiemy, ¿e klikniêto akurat ten przycisk.
+
+Dlaczego to wyskakuje tak samo?
+Niezale¿nie od tego, czy wywo³asz ChooseColorW z menu, z przycisku, czy nawet po naciœniêciu klawisza na klawiaturze – mechanizm "wyskakiwania" jest zawsze ten sam. Ró¿ni siê tylko wyzwalacz (trigger) w Twoim kodzie.
+
+Czy chcia³byœ wiedzieæ, jak sprawiæ, ¿eby przycisk zawsze trzyma³ siê np. prawego dolnego rogu okna, nawet gdy je rozci¹gasz?
