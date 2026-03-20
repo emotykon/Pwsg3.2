@@ -1,0 +1,75 @@
+#include <vector> // [NOWE] Do przechowywania listy elips
+
+// [NOWE] Struktura opisuj¹ca elipsê
+struct ellipse_data {
+    RECT rect;
+    COLORREF color;
+};
+
+class app_2048 {
+private:
+    std::vector<ellipse_data> m_ellipses; // [NOWE] Lista wszystkich elips
+    POINT m_start_drag;                   // [NOWE] Punkt rozpoczêcia rysowania
+    bool m_is_dragging = false;           // [NOWE] Czy u¿ytkownik trzyma lewy przycisk
+
+    // ... reszta pól ...
+    void draw_all_ellipses(HDC hdc);      // [NOWE] Metoda pomocnicza
+};
+
+void app_2048::draw_all_ellipses(HDC hdc) {
+    for (const auto& ellipse : m_ellipses) {
+        // Tworzymy pêdzel w kolorze elipsy
+        HBRUSH brush = CreateSolidBrush(ellipse.color);
+        HBRUSH old_brush = (HBRUSH)SelectObject(hdc, brush);
+        
+        // Rysujemy elipsê w zapisanym prostok¹cie
+        Ellipse(hdc, ellipse.rect.left, ellipse.rect.top, ellipse.rect.right, ellipse.rect.bottom);
+        
+        // Sprz¹tamy zasoby GDI
+        SelectObject(hdc, old_brush);
+        DeleteObject(brush);
+    }
+}
+
+void app_2048::draw_gradient(HWND window) {
+    // ... (kod rysowania gradientu bez zmian) ...
+    GradientFill(hdc, vertex, 2, &g_rect, 1, GRADIENT_FILL_RECT_H);
+
+    // [NOWE] Po narysowaniu t³a, rysujemy na nim elipsy
+    draw_all_ellipses(hdc);
+
+    EndPaint(window, &ps);
+}
+
+LRESULT app_2048::window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
+    switch (message) {
+    case WM_LBUTTONDOWN: // Klikniêcie - zaczynamy rysowaæ
+        m_start_drag.x = LOWORD(lparam);
+        m_start_drag.y = HIWORD(lparam);
+        m_is_dragging = true;
+        SetCapture(window); // Przechwyæ mysz poza oknem
+        return 0;
+
+    case WM_LBUTTONUP: // Puszczenie - zapisujemy elipsê na sta³e
+        if (m_is_dragging) {
+            ellipse_data new_ellipse;
+            new_ellipse.rect = { m_start_drag.x, m_start_drag.y, LOWORD(lparam), HIWORD(lparam) };
+            new_ellipse.color = m_selected_color; // U¿ywamy aktualnie wybranego koloru z menu!
+            
+            m_ellipses.push_back(new_ellipse);
+            m_is_dragging = false;
+            ReleaseCapture();
+            InvalidateRect(window, nullptr, TRUE); // Odœwie¿, by zobaczyæ now¹ elipsê
+        }
+        return 0;
+
+    case WM_MOUSEMOVE: // Przesuwanie - opcjonalnie: tutaj mo¿na dodaæ podgl¹d "na ¿ywo"
+        if (m_is_dragging) {
+            // Dla prostoty odœwie¿amy okno tylko przy puszczeniu, 
+            // ale InvalidateRect tutaj da³oby podgl¹d "rozci¹gania" elipsy.
+        }
+        return 0;
+    
+    // ... reszta case-ów (WM_COMMAND, WM_PAINT, itd.) ...
+    }
+}
